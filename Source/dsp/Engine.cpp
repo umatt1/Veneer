@@ -1,0 +1,226 @@
+#include "Engine.h"
+
+#include <algorithm>
+#include <cmath>
+
+#include "Voicing.h"
+
+namespace veneer
+{
+namespace
+{
+constexpr int chunkLength = 32;
+constexpr double gainRampSeconds = 0.02;
+constexpr double amountRampSeconds = 0.05;
+constexpr double bypassRampSeconds = 0.01;
+constexpr double inputMeterSeconds = 0.3;
+constexpr float silenceDb = -100.0f;
+
+float dbToGain (float db) noexcept
+{
+    return std::pow (10.0f, db / 20.0f);
+}
+
+float gainToDb (float gain) noexcept
+{
+    return gain > 1.0e-5f ? 20.0f * std::log10 (gain) : silenceDb;
+}
+}
+
+void Engine::prepare (double newSampleRate, int channels)
+{
+    sampleRate = newSampleRate;
+    numChannels = std::clamp (channels, 1, maxChannels);
+
+    crossover.prepare (sampleRate, numChannels);
+    crossover.setFrequencies (voicing::lowCrossoverHz, voicing::highCrossoverHz);
+
+    for (auto& c : compressors)
+        c.prepare (sampleRate);
+
+    limiter.prepare (sampleRate, numChannels);
+    loudness.prepare (sampleRate, numChannels);
+
+    for (auto& d : dryDelay)
+        d.assign ((size_t) limiter.getLatencySamples(), 0.0f);
+
+    for (auto* s : { &inputGain, &pushGain, &outputGain })
+        s->reset (sampleRate, gainRampSeconds);
+
+    for (auto& s : focusGain)
+        s.reset (sampleRate, gainRampSeconds);
+
+    amount.reset (sampleRate, amountRampSeconds);
+    bypassMix.reset (sampleRate, bypassRampSeconds);
+
+    inputMeterCoef = (float) std::exp (-1.0 / (inputMeterSeconds * sampleRate));
+
+    reset();
+}
+
+void Engine::reset()
+{
+    crossover.reset();
+
+    for (auto& c : compressors)
+        c.reset();
+
+    limiter.reset();
+    loudness.reset();
+    outputPeak.reset();
+
+    for (auto& d : dryDelay)
+        std::fill (d.begin(), d.end(), 0.0f);
+
+    dryPosition = 0;
+    inputMeanSquare = 0.0f;
+    initialised = false;
+}
+
+void Engine::setTargets (const EngineParams& p)
+{
+    const std::array<float, numBands> focusDb { p.weightDb, p.bodyDb, p.airDb };
+
+    if (! initialised)
+    {
+        inputGain.setCurrentAndTargetValue (dbToGain (p.inputDb));
+        pushGain.setCurrentAndTargetValue (dbToGain (p.pushDb));
+        outputGain.setCurrentAndTargetValue (dbToGain (p.outputDb));
+        amount.setCurrentAndTargetValue (p.amountPercent);
+        bypassMix.setCurrentAndTargetValue (p.bypass ? 1.0f : 0.0f);
+
+        for (size_t b = 0; b < (size_t) numBands; ++b)
+            focusGain[b].setCurrentAndTargetValue (dbToGain (focusDb[b]));
+
+        initialised = true;
+    }
+
+    inputGain.setTargetValue (dbToGain (p.inputDb));
+    pushGain.setTargetValue (dbToGain (p.pushDb));
+    outputGain.setTargetValue (dbToGain (p.outputDb));
+    amount.setTargetValue (p.amountPercent);
+    bypassMix.setTargetValue (p.bypass ? 1.0f : 0.0f);
+
+    for (size_t b = 0; b < (size_t) numBands; ++b)
+        focusGain[b].setTargetValue (dbToGain (focusDb[b]));
+
+    limiter.setCeilingDb (p.ceilingDb);
+}
+
+void Engine::updateBandSettings (int length)
+{
+    const auto currentAmount = amount.getCurrentValue();
+
+    for (int b = 0; b < numBands; ++b)
+        compressors[(size_t) b].setSettings (voicing::compressorSettings (b, currentAmount));
+
+    amount.skip (length);
+}
+
+void Engine::process (juce::AudioBuffer<float>& buffer, const EngineParams& params)
+{
+    const auto numSamples = buffer.getNumSamples();
+    const auto activeChannels = std::min (buffer.getNumChannels(), numChannels);
+
+    if (activeChannels == 0 || numSamples == 0)
+        return;
+
+    setTargets (params);
+
+    std::array<float*, maxChannels> data {};
+
+    for (int ch = 0; ch < activeChannels; ++ch)
+        data[(size_t) ch] = buffer.getWritePointer (ch);
+
+    BlockStats stats;
+
+    for (int start = 0; start < numSamples; start += chunkLength)
+    {
+        const auto length = std::min (chunkLength, numSamples - start);
+        updateBandSettings (length);
+
+        for (int i = 0; i < length; ++i)
+            processFrame (data.data(), start + i, stats);
+    }
+
+    for (size_t b = 0; b < (size_t) numBands; ++b)
+        meters.bandGrDb[b].store (stats.bandGrDb[b], std::memory_order_relaxed);
+
+    meters.limiterGrDb.store (stats.limiterGrDb, std::memory_order_relaxed);
+    meters.truePeakDb.store (gainToDb (stats.truePeak), std::memory_order_relaxed);
+    meters.inputRmsDb.store (10.0f * std::log10 (inputMeanSquare + 1.0e-10f), std::memory_order_relaxed);
+    meters.momentaryLufs.store (loudness.getMomentary(), std::memory_order_relaxed);
+    meters.shortTermLufs.store (loudness.getShortTerm(), std::memory_order_relaxed);
+    meters.integratedLufs.store (loudness.getIntegrated(), std::memory_order_relaxed);
+}
+
+void Engine::processFrame (float* const* data, int index, BlockStats& stats)
+{
+    std::array<float, maxChannels> dry {}, input {}, wet {}, limiterIn {}, limiterOut {};
+
+    const auto inGain = inputGain.getNextValue();
+    float power = 0.0f;
+
+    for (int ch = 0; ch < numChannels; ++ch)
+    {
+        dry[(size_t) ch] = data[ch] != nullptr ? data[ch][index] : 0.0f;
+        input[(size_t) ch] = dry[(size_t) ch] * inGain;
+        power += input[(size_t) ch] * input[(size_t) ch];
+    }
+
+    inputMeanSquare = power / (float) numChannels + inputMeterCoef * (inputMeanSquare - power / (float) numChannels);
+
+    std::array<std::array<float, maxChannels>, numBands> bands {};
+
+    for (int ch = 0; ch < numChannels; ++ch)
+        crossover.process (ch, input[(size_t) ch], bands[0][(size_t) ch], bands[1][(size_t) ch], bands[2][(size_t) ch]);
+
+    for (size_t b = 0; b < (size_t) numBands; ++b)
+    {
+        float linked = 0.0f;
+
+        for (int ch = 0; ch < numChannels; ++ch)
+            linked = std::max (linked, bands[b][(size_t) ch] * bands[b][(size_t) ch]);
+
+        const auto gain = compressors[b].process (linked) * focusGain[b].getNextValue();
+        stats.bandGrDb[b] = std::max (stats.bandGrDb[b], compressors[b].getGainReductionDb());
+
+        for (int ch = 0; ch < numChannels; ++ch)
+            wet[(size_t) ch] += bands[b][(size_t) ch] * gain;
+    }
+
+    const auto push = pushGain.getNextValue();
+
+    for (int ch = 0; ch < numChannels; ++ch)
+        limiterIn[(size_t) ch] = wet[(size_t) ch] * push;
+
+    const auto limiterGr = limiter.process (limiterIn.data(), limiterOut.data());
+    stats.limiterGrDb = std::max (stats.limiterGrDb, limiterGr);
+
+    const auto outGain = outputGain.getNextValue();
+    const auto mix = bypassMix.getNextValue();
+    float framePeak = 0.0f;
+
+    std::array<float, maxChannels> out {};
+
+    for (int ch = 0; ch < numChannels; ++ch)
+    {
+        auto& delay = dryDelay[(size_t) ch];
+        const auto delayedDry = delay[dryPosition];
+        delay[dryPosition] = dry[(size_t) ch];
+
+        const auto processed = limiterOut[(size_t) ch] * outGain;
+        out[(size_t) ch] = processed * (1.0f - mix) + delayedDry * mix;
+
+        if (data[ch] != nullptr)
+            data[ch][index] = out[(size_t) ch];
+
+        framePeak = std::max (framePeak, outputPeak.process (ch, out[(size_t) ch]));
+    }
+
+    dryPosition = (dryPosition + 1) % (size_t) limiter.getLatencySamples();
+    stats.truePeak = std::max (stats.truePeak, framePeak);
+
+    loudness.processFrame (out.data());
+}
+}

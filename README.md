@@ -3,8 +3,9 @@
 A free, open-source finishing stage for your mix bus. Put it on the master channel, set the input
 level, and bring up **Amount** until the mix feels finished.
 
-> **Status: pre-alpha.** The current build is a pass-through skeleton. Nothing below is implemented
-> yet except the plugin shell.
+> **Status: pre-alpha.** The multiband dynamics, true-peak limiter and loudness metering are implemented and
+> tested. There is no custom interface yet (the host shows generic controls), and the tone, saturation and
+> widening stages are not built. The sound is not tuned.
 
 ## Planned controls
 
@@ -31,6 +32,14 @@ affiliated with, endorsed by, or sponsored by Cradle or anyone else named in thi
 ```sh
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --target Veneer_VST3 -j4
+```
+
+Tests:
+
+```sh
+cmake -S . -B build-test -DVENEER_BUILD_TESTS=ON
+cmake --build build-test --target VeneerTests -j4
+ctest --test-dir build-test --output-on-failure
 ```
 
 To reuse an existing JUCE checkout, add `-DFETCHCONTENT_SOURCE_DIR_JUCE=/path/to/JUCE`. Builds do

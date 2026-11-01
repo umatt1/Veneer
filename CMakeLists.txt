@@ -35,8 +35,20 @@ juce_add_plugin(Veneer
     FORMATS ${VENEER_FORMATS}
     PRODUCT_NAME "Veneer")
 
+set(VENEER_DSP_SOURCES
+    Source/dsp/BandCompressor.cpp
+    Source/dsp/Crossover.cpp
+    Source/dsp/Engine.cpp
+    Source/dsp/Limiter.cpp
+    Source/dsp/Loudness.cpp
+    Source/dsp/TruePeak.cpp
+    Source/dsp/Voicing.cpp)
+
 target_sources(Veneer PRIVATE
-    Source/PluginProcessor.cpp)
+    Source/PluginProcessor.cpp
+    ${VENEER_DSP_SOURCES})
+
+target_include_directories(Veneer PRIVATE Source)
 
 target_compile_definitions(Veneer PUBLIC
     JUCE_WEB_BROWSER=0
@@ -60,4 +72,65 @@ if(APPLE)
                     "$<GENEX_EVAL:$<TARGET_PROPERTY:Veneer_${fmt},JUCE_PLUGIN_ARTEFACT_FILE>>"
             VERBATIM)
     endforeach()
+endif()
+
+option(VENEER_BUILD_TOOLS "Build the offline render tool" OFF)
+
+if(VENEER_BUILD_TOOLS)
+    add_executable(VeneerRender Tools/Render.cpp ${VENEER_DSP_SOURCES})
+
+    target_include_directories(VeneerRender PRIVATE Source)
+
+    target_compile_definitions(VeneerRender PRIVATE
+        JUCE_WEB_BROWSER=0
+        JUCE_USE_CURL=0)
+
+    target_link_libraries(VeneerRender PRIVATE
+        juce::juce_audio_formats
+        juce::juce_dsp
+        juce::juce_recommended_config_flags
+        juce::juce_recommended_warning_flags)
+endif()
+
+option(VENEER_BUILD_TESTS "Build the unit tests" OFF)
+
+if(VENEER_BUILD_TESTS)
+    enable_testing()
+
+    FetchContent_Declare(Catch2
+        GIT_REPOSITORY https://github.com/catchorg/Catch2.git
+        GIT_TAG v3.7.1
+        GIT_SHALLOW TRUE)
+    FetchContent_MakeAvailable(Catch2)
+    list(APPEND CMAKE_MODULE_PATH ${catch2_SOURCE_DIR}/extras)
+    include(Catch)
+
+    add_executable(VeneerTests
+        Tests/CompressorTests.cpp
+        Tests/CrossoverTests.cpp
+        Tests/EngineTests.cpp
+        Tests/LimiterTests.cpp
+        Tests/LoudnessTests.cpp
+        Tests/PerfTests.cpp
+        Tests/ProcessorTests.cpp
+        Tests/TruePeakTests.cpp
+        Tests/WindowedTests.cpp
+        Source/PluginProcessor.cpp
+        ${VENEER_DSP_SOURCES})
+
+    target_include_directories(VeneerTests PRIVATE Source Tests)
+
+    target_compile_definitions(VeneerTests PRIVATE
+        JUCE_WEB_BROWSER=0
+        JUCE_USE_CURL=0
+        JucePlugin_Name="Veneer")
+
+    target_link_libraries(VeneerTests PRIVATE
+        Catch2::Catch2WithMain
+        juce::juce_audio_utils
+        juce::juce_dsp
+        juce::juce_recommended_config_flags
+        juce::juce_recommended_warning_flags)
+
+    catch_discover_tests(VeneerTests)
 endif()

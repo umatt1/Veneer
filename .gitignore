@@ -5,6 +5,8 @@
 *.aiff
 *.flac
 *.wav
+build-test-release/
+build-test/
 build-universal/
 build/
 cmake-build-*/

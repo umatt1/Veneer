@@ -2,6 +2,8 @@
 
 #include <juce_audio_processors/juce_audio_processors.h>
 
+#include "dsp/Engine.h"
+
 class VeneerProcessor final : public juce::AudioProcessor
 {
 public:
@@ -9,6 +11,7 @@ public:
 
     void prepareToPlay (double sampleRate, int samplesPerBlock) override;
     void releaseResources() override;
+    void reset() override;
     bool isBusesLayoutSupported (const BusesLayout& layouts) const override;
     void processBlock (juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
 
@@ -26,13 +29,29 @@ public:
     const juce::String getProgramName (int) override { return {}; }
     void changeProgramName (int, const juce::String&) override {}
 
+    juce::AudioProcessorParameter* getBypassParameter() const override { return bypassParameter; }
+
     void getStateInformation (juce::MemoryBlock& destData) override;
     void setStateInformation (const void* data, int sizeInBytes) override;
 
-private:
-    juce::AudioProcessorValueTreeState apvts;
+    veneer::Meters& getMeters() noexcept { return engine.getMeters(); }
 
-    static juce::AudioProcessorValueTreeState::ParameterLayout createLayout();
+private:
+    veneer::EngineParams readParams() const;
+
+    juce::AudioProcessorValueTreeState apvts;
+    veneer::Engine engine;
+
+    std::atomic<float>* inputParam = nullptr;
+    std::atomic<float>* amountParam = nullptr;
+    std::atomic<float>* weightParam = nullptr;
+    std::atomic<float>* bodyParam = nullptr;
+    std::atomic<float>* airParam = nullptr;
+    std::atomic<float>* pushParam = nullptr;
+    std::atomic<float>* outputParam = nullptr;
+    std::atomic<float>* ceilingParam = nullptr;
+    std::atomic<float>* bypassRaw = nullptr;
+    juce::AudioProcessorParameter* bypassParameter = nullptr;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (VeneerProcessor)
 };
