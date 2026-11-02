@@ -7,9 +7,10 @@ level, and bring up **Amount** until the mix feels finished.
 
 > **Status: pre-alpha.** The signal chain and the interface are built and tested: tone curve, multiband
 > dynamics, saturation, high-frequency widening, a true-peak limiter, loudness metering and a scalable custom
-> interface. CI builds and tests it on macOS, Linux and Windows, and the VST3 and Audio Unit pass pluginval and
-> `auval`. In REAPER on macOS the VST3 renders the same audio as the engine. It has not been tried in Logic or in
-> any host on Windows or Linux, and the voicing has been measured but not tuned by ear.
+> interface. CI builds and tests it on macOS, Linux and Windows. The VST3 passes pluginval on all three, the Audio
+> Unit passes pluginval and `auval`, and the Intel build passes its tests under Rosetta. In REAPER on macOS the VST3
+> renders the same audio as the engine. It has not been tried in Logic or in any host on Windows or Linux, and the
+> voicing has been measured but not tuned by ear.
 > See [docs/VOICING.md](docs/VOICING.md) for what it does and how to audition it,
 > [docs/UI.md](docs/UI.md) for the interface and [docs/DSP.md](docs/DSP.md) for how it is built and tested.
 

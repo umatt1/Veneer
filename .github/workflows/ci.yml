@@ -202,8 +202,8 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
-  # The macOS download is universal, and this is the only place its Intel half runs: an x86-64 build of the
-  # tests, translated by Rosetta on the Apple silicon runner.
+  # The only place Intel code runs: an x86-64 build of the tests, translated by Rosetta on the Apple silicon runner.
+  # It exercises the engine and processor sources, not the plug-in wrapper.
   intel-under-rosetta:
     name: Intel build under Rosetta (macOS)
     runs-on: macos-latest
