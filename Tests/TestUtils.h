@@ -125,8 +125,8 @@ inline double samplePeak (const std::vector<float>& x, int from, int to)
 // Needs 48 samples of context on both sides of [from, to).
 inline double referenceTruePeak (const std::vector<float>& x, int from, int to)
 {
-    constexpr int halfWidth = 48, steps = 16, taps = 2 * halfWidth;
-    constexpr double beta = 9.0;
+    static constexpr int halfWidth = 48, steps = 16, taps = 2 * halfWidth;
+    static constexpr double beta = 9.0;
 
     static const std::vector<double> kernel = []
     {
