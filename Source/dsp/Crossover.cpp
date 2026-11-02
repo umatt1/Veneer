@@ -1,9 +1,12 @@
 #include "Crossover.h"
 
+#include "Biquad.h"
+
 namespace veneer
 {
-void Crossover::prepare (double sampleRate, int numChannels)
+void Crossover::prepare (double newSampleRate, int numChannels)
 {
+    sampleRate = newSampleRate;
     const juce::dsp::ProcessSpec spec { sampleRate, 512, (juce::uint32) numChannels };
 
     splitHigh.prepare (spec);
@@ -21,9 +24,12 @@ void Crossover::reset()
 
 void Crossover::setFrequencies (float lowMidHz, float midHighHz)
 {
-    splitLow.setCutoffFrequency (lowMidHz);
-    alignHigh.setCutoffFrequency (lowMidHz);
-    splitHigh.setCutoffFrequency (midHighHz);
+    const auto lowMid = (float) usableFrequency (sampleRate, (double) lowMidHz);
+    const auto midHigh = (float) usableFrequency (sampleRate, (double) midHighHz);
+
+    splitLow.setCutoffFrequency (lowMid);
+    alignHigh.setCutoffFrequency (lowMid);
+    splitHigh.setCutoffFrequency (midHigh);
 }
 
 void Crossover::process (int channel, float in, float& low, float& mid, float& high) noexcept

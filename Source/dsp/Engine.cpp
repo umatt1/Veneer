@@ -25,6 +25,12 @@ float gainToDb (float gain) noexcept
 {
     return gain > 1.0e-5f ? 20.0f * std::log10 (gain) : silenceDb;
 }
+
+// NaN or infinity would sit in the filters until the next reset, and a huge value would overflow their squares
+float sanitised (float x) noexcept
+{
+    return std::isfinite (x) ? std::clamp (x, -Engine::maxInputMagnitude, Engine::maxInputMagnitude) : 0.0f;
+}
 }
 
 void Engine::prepare (double newSampleRate, int channels)
@@ -194,7 +200,7 @@ void Engine::processFrame (float* const* data, int index, BlockStats& stats)
 
     for (int ch = 0; ch < numChannels; ++ch)
     {
-        dry[(size_t) ch] = data[ch] != nullptr ? data[ch][index] : 0.0f;
+        dry[(size_t) ch] = data[ch] != nullptr ? sanitised (data[ch][index]) : 0.0f;
         input[(size_t) ch] = dry[(size_t) ch] * inGain;
         power += input[(size_t) ch] * input[(size_t) ch];
     }

@@ -37,6 +37,12 @@ public:
     static constexpr int numBands = 3;
     static constexpr int maxChannels = 2;
 
+    // input beyond this is clipped to it (+60 dBFS, far above any real signal) and NaN or infinity becomes silence
+    static constexpr float maxInputMagnitude = 1000.0f;
+
+    // seconds after the input stops until the output is below -100 dBFS; the longest measured was 0.26 s
+    static constexpr double tailSeconds = 0.3;
+
     void prepare (double sampleRate, int numChannels);
     void reset();
     void process (juce::AudioBuffer<float>& buffer, const EngineParams& params);

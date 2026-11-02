@@ -14,6 +14,7 @@ public:
     void process (int channel, float in, float& low, float& mid, float& high) noexcept;
 
 private:
+    double sampleRate = 48000.0;
     juce::dsp::LinkwitzRileyFilter<float> splitHigh, splitLow, alignHigh;
 };
 }

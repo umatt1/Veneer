@@ -6,6 +6,10 @@
 namespace
 {
 constexpr const char* editorWidthProperty = "editorWidth";
+
+// written so that a later release can tell which layout it is reading
+constexpr const char* stateVersionProperty = "stateVersion";
+constexpr int stateVersion = 1;
 }
 
 VeneerProcessor::VeneerProcessor()
@@ -85,6 +89,7 @@ void VeneerProcessor::getStateInformation (juce::MemoryBlock& destData)
 {
     auto state = apvts.copyState();
     state.setProperty (editorWidthProperty, editorWidth.load(), nullptr);
+    state.setProperty (stateVersionProperty, stateVersion, nullptr);
 
     if (auto xml = state.createXml())
         copyXmlToBinary (*xml, destData);
@@ -99,6 +104,7 @@ void VeneerProcessor::setStateInformation (const void* data, int sizeInBytes)
             auto state = juce::ValueTree::fromXml (*xml);
             editorWidth.store (state.getProperty (editorWidthProperty, 0));
             state.removeProperty (editorWidthProperty, nullptr);
+            state.removeProperty (stateVersionProperty, nullptr);
             apvts.replaceState (state);
         }
     }

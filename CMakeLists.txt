@@ -136,6 +136,7 @@ if(VENEER_BUILD_TESTS)
 
     add_executable(VeneerTests
         Tests/CompressorTests.cpp
+        Tests/ConcurrencyTests.cpp
         Tests/CrossoverTests.cpp
         Tests/EditorTests.cpp
         Tests/EngineTests.cpp
@@ -145,7 +146,11 @@ if(VENEER_BUILD_TESTS)
         Tests/MeterMathTests.cpp
         Tests/PerfTests.cpp
         Tests/ProcessorTests.cpp
+        Tests/RealtimeTests.cpp
+        Tests/RobustnessTests.cpp
         Tests/SaturatorTests.cpp
+        Tests/StateTests.cpp
+        Tests/TailTests.cpp
         Tests/TruePeakTests.cpp
         Tests/VoicingTests.cpp
         Tests/WindowedTests.cpp

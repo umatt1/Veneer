@@ -23,7 +23,7 @@ Biquad normalised (double b0, double b1, double b2, double a0, double a1, double
 Biquad makeLowShelf (double sampleRate, double frequencyHz, double q, double gainDb)
 {
     const auto A = std::pow (10.0, gainDb / 40.0);
-    const auto w0 = 2.0 * pi * frequencyHz / sampleRate;
+    const auto w0 = 2.0 * pi * usableFrequency (sampleRate, frequencyHz) / sampleRate;
     const auto cosW = std::cos (w0);
     const auto beta = std::sin (w0) / q * std::sqrt (A);
 
@@ -38,7 +38,7 @@ Biquad makeLowShelf (double sampleRate, double frequencyHz, double q, double gai
 Biquad makeHighShelf (double sampleRate, double frequencyHz, double q, double gainDb)
 {
     const auto A = std::pow (10.0, gainDb / 40.0);
-    const auto w0 = 2.0 * pi * frequencyHz / sampleRate;
+    const auto w0 = 2.0 * pi * usableFrequency (sampleRate, frequencyHz) / sampleRate;
     const auto cosW = std::cos (w0);
     const auto beta = std::sin (w0) / q * std::sqrt (A);
 
@@ -53,7 +53,7 @@ Biquad makeHighShelf (double sampleRate, double frequencyHz, double q, double ga
 Biquad makePeak (double sampleRate, double frequencyHz, double q, double gainDb)
 {
     const auto A = std::pow (10.0, gainDb / 40.0);
-    const auto w0 = 2.0 * pi * frequencyHz / sampleRate;
+    const auto w0 = 2.0 * pi * usableFrequency (sampleRate, frequencyHz) / sampleRate;
     const auto cosW = std::cos (w0);
     const auto alpha = std::sin (w0) / (2.0 * q);
 

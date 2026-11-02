@@ -177,20 +177,78 @@ to end.
 Not covered: EBU Tech 3341 cases 6, 7, 8 and 20-23. They need the multichannel or programme files, or the
 exact resampler, from the EBU test set.
 
+### Sanitizers
+
+The whole suite also runs under AddressSanitizer with UndefinedBehaviorSanitizer, and under ThreadSanitizer.
+On macOS the Command Line Tools' clang has all three:
+
+```sh
+san=address,undefined   # or: san=thread, in a separate build directory
+flags="-fsanitize=$san -fno-omit-frame-pointer -g"
+cmake -S . -B build-san -DVENEER_BUILD_TESTS=ON -DCMAKE_BUILD_TYPE=Release \
+      -DCMAKE_CXX_FLAGS="$flags" -DCMAKE_OBJCXX_FLAGS="$flags" -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=$san"
+cmake --build build-san --target VeneerTests -j4
+ASAN_OPTIONS=detect_leaks=0 build-san/VeneerTests
+```
+
+Both runs are clean: 110 test cases and 1.7 million assertions, with no reports. A clean run only counts if the
+tool can fail, so each one was checked first against a deliberate bug (a heap overflow, a signed overflow, a data
+race). `Tests/ConcurrencyTests.cpp` is what gives the thread sanitizer something to find: `processBlock` runs on
+one thread while another polls the meters, asks for loudness resets, changes parameters and saves the state, as a
+host and the interface do. Putting back the original reset design, which cleared the loudness histogram from
+the interface thread, makes it report a data race at once.
+
+## Robustness
+
+The properties below are tests, in `Tests/RobustnessTests.cpp`, `RealtimeTests.cpp`, `TailTests.cpp` and
+`StateTests.cpp`.
+
+- **Block size.** With fixed settings the output is bit-identical for any block size: 1, 2, 3, 7, 31, 32, 33,
+  64, 100, 513, 1000, 4096 and a million samples all match 512, and empty blocks between real ones change
+  nothing. Settings that are moving are applied on a 32-sample grid that starts at each block, so with
+  automation the block size can change the result slightly.
+- **Channels.** A mono bus gives the same samples as the left channel of a dual-mono pair.
+- **State.** `reset()` and `prepare()` leave every stage as a fresh engine would be: the next render is
+  bit-identical, including after a change of sample rate.
+- **Sample rate.** At 44.1, 48, 88.2, 96, 176.4 and 192 kHz, bypass is the input delayed by the reported latency,
+  the ceiling holds at extreme settings (true peak 0.23 to 0.27 dB under it on the test programme), and a 1 kHz
+  tone at -23 LUFS reads within 0.021 LU.
+- **Outside that range.** 8, 11.025, 16, 22.05 and 32 kHz, and 352.8 and 384 kHz, give finite output under the
+  ceiling. A filter designed at a fixed frequency is held below 0.45 of the sample rate, so at a low rate the
+  9 kHz shelf, the 6 kHz widening and the 5 kHz crossover move down. The tone changes there, and nothing is
+  tuned for those rates.
+- **Bad input.** NaN and infinity become silence and anything beyond +/-1000 (+60 dBFS) is clipped to it, before
+  any filter sees it. A single NaN sample would otherwise stay in the filters until the next reset.
+- **No allocation.** `processBlock` makes no C++ heap allocation: counted over blocks of 1 to 4096 samples at five
+  different settings, including bypass. Direct calls to `malloc` are not seen by that count.
+- **Tail.** The processor reports 0.3 s. After the input stops, the output falls below -100 dBFS within 0.26 s at
+  the worst setting measured (extreme settings, a noise burst) and within 0.09 to 0.17 s at the defaults. That
+  includes the latency, and it hardly depends on the sample rate.
+- **Saved state.** It holds the parameters, the editor width and a version number (1). Data that is not a Veneer
+  state, a state cut off inside its content, and a state with a different root tag are ignored and change
+  nothing. JUCE's reader tolerates a missing closing tag, so a state cut off only there loads in full. Values
+  outside a parameter's range are clamped, and entries this version does not know are ignored.
+
 ## Cost
 
 Release build, stereo, measured on the development machine (Apple silicon):
 
 | Sample rate | Speed | CPU |
 |---|---|---|
-| 48 kHz | 33x realtime | 3.0% of one core |
-| 96 kHz | 17x realtime | 6.0% of one core |
-| 192 kHz | 8.4x realtime | 11.9% of one core |
+| 48 kHz | 36x realtime | 2.8% of one core |
+| 96 kHz | 18x realtime | 5.5% of one core |
+| 192 kHz | 9.0x realtime | 11.0% of one core |
 
-The two true-peak detectors (the limiter's and the output meter's) are the largest single cost, then the three
-saturators.
+By block size at 48 kHz the cost is flat from 16 to 4096 samples (2.7 to 2.8%). A block of 8 costs 2.9% and a
+degenerate block of 1 costs 4.2%.
+
+A sampling profile of this benchmark (macOS `sample`, Release build, 1 ms interval) puts about 78% of the audio
+thread's own time in the true-peak interpolation filter, which both detectors share: the limiter's and the one
+behind the output meter. Every other stage is a few percent or less, roughly 3% each for the crossover and the
+saturators and 1% for the compressors. The shares are approximate because the compiler inlines most small
+functions.
 
 ## Not built yet
 
-The sample-rate and block-size matrix, a pass over non-finite input and host testing (milestone 4), and CI on
-Windows and Linux (milestone 5). The interface is described in [UI.md](UI.md).
+Host testing (milestone 4: REAPER, the AU through `auval`, Logic) and CI on Windows and Linux (milestone 5).
+The interface is described in [UI.md](UI.md).

@@ -1,7 +1,16 @@
 #pragma once
 
+#include <algorithm>
+
 namespace veneer
 {
+// a filter designed at a fixed frequency is held below this fraction of the sample rate, so at a low rate the
+// tone changes but the filter stays stable
+inline double usableFrequency (double sampleRate, double frequencyHz) noexcept
+{
+    return std::min (frequencyHz, 0.45 * sampleRate);
+}
+
 struct Biquad
 {
     double b0 = 1.0, b1 = 0.0, b2 = 0.0, a1 = 0.0, a2 = 0.0;
