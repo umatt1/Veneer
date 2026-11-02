@@ -1,13 +1,17 @@
 # Veneer
 
+[![CI](https://github.com/umatt1/Veneer/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/umatt1/Veneer/actions/workflows/ci.yml)
+
 A free, open-source finishing stage for your mix bus. Put it on the master channel, set the input
 level, and bring up **Amount** until the mix feels finished.
 
 > **Status: pre-alpha.** The signal chain and the interface are built and tested: tone curve, multiband
 > dynamics, saturation, high-frequency widening, a true-peak limiter, loudness metering and a scalable custom
-> interface. It has not been run in a host yet, and the voicing has been measured but not tuned by ear.
-> See [docs/VOICING.md](docs/VOICING.md) for what it does and how to audition it, and
-> [docs/UI.md](docs/UI.md) for the interface.
+> interface. CI builds and tests it on macOS, Linux and Windows, and the VST3 and Audio Unit pass pluginval and
+> `auval`. In REAPER on macOS the VST3 renders the same audio as the engine. It has not been tried in Logic or in
+> any host on Windows or Linux, and the voicing has been measured but not tuned by ear.
+> See [docs/VOICING.md](docs/VOICING.md) for what it does and how to audition it,
+> [docs/UI.md](docs/UI.md) for the interface and [docs/DSP.md](docs/DSP.md) for how it is built and tested.
 
 ## Controls
 
@@ -22,7 +26,9 @@ level, and bring up **Amount** until the mix feels finished.
 Meters show the input level against a lit target band, per-band and limiter gain reduction, loudness (momentary,
 short-term and integrated LUFS) and true peak. The interface scales from 75% to 200%.
 
-Formats: VST3, AU and Standalone on macOS; VST3 and Standalone planned for Windows and Linux.
+Formats: VST3, AU and Standalone on macOS. VST3 and Standalone builds for Windows and Linux come out of CI, which
+runs the unit tests on them, but nobody has tried them in a host yet. Each CI run keeps its builds for a week as
+artifacts.
 
 ## How it compares
 

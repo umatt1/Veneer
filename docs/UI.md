@@ -79,8 +79,9 @@ device.
 
 ## Not done
 
-- It has not been opened in a host yet. That is part of milestone 4: pluginval opens and resizes the VST3
-  editor, but nothing has run the AU editor, the standalone app or a DAW.
+- It has been opened in one DAW, REAPER on macOS, where the VST3 editor opens at its default size and closes
+  again, and pluginval opens the VST3 and AU editors, including while audio is processing. Nobody has looked at
+  it in a host window yet, and it has not been tried in Logic, in the standalone app, or on Windows or Linux.
 - The meters and the loudness readout are not exposed to screen readers. They change continuously, and there is
   no other route to the same numbers. Knobs and buttons have names and keyboard focus, which is what JUCE builds
   its screen-reader interface from, but that was not tried with a screen reader.
