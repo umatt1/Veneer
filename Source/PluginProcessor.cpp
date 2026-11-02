@@ -1,6 +1,12 @@
 #include "PluginProcessor.h"
 
 #include "Parameters.h"
+#include "PluginEditor.h"
+
+namespace
+{
+constexpr const char* editorWidthProperty = "editorWidth";
+}
 
 VeneerProcessor::VeneerProcessor()
     : AudioProcessor (BusesProperties()
@@ -72,20 +78,30 @@ void VeneerProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Midi
 
 juce::AudioProcessorEditor* VeneerProcessor::createEditor()
 {
-    return new juce::GenericAudioProcessorEditor (*this);
+    return new VeneerEditor (*this);
 }
 
 void VeneerProcessor::getStateInformation (juce::MemoryBlock& destData)
 {
-    if (auto xml = apvts.copyState().createXml())
+    auto state = apvts.copyState();
+    state.setProperty (editorWidthProperty, editorWidth.load(), nullptr);
+
+    if (auto xml = state.createXml())
         copyXmlToBinary (*xml, destData);
 }
 
 void VeneerProcessor::setStateInformation (const void* data, int sizeInBytes)
 {
     if (auto xml = getXmlFromBinary (data, sizeInBytes))
+    {
         if (xml->hasTagName (apvts.state.getType()))
-            apvts.replaceState (juce::ValueTree::fromXml (*xml));
+        {
+            auto state = juce::ValueTree::fromXml (*xml);
+            editorWidth.store (state.getProperty (editorWidthProperty, 0));
+            state.removeProperty (editorWidthProperty, nullptr);
+            apvts.replaceState (state);
+        }
+    }
 }
 
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()

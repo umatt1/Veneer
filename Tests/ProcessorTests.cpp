@@ -216,6 +216,52 @@ TEST_CASE ("state survives a save and restore", "[processor]")
     }
 }
 
+TEST_CASE ("parameter text is what the host and the interface both show", "[processor]")
+{
+    juce::ScopedJuceInitialiser_GUI init;
+    VeneerProcessor processor;
+
+    auto text = [&] (const char* id, float value)
+    {
+        auto* p = find (processor, id);
+        REQUIRE (p != nullptr);
+        return p->getText (p->convertTo0to1 (value), 32);
+    };
+
+    REQUIRE (text (veneer::params::input, 4.5f) == "+4.5");
+    REQUIRE (text (veneer::params::weight, -2.5f) == "-2.5");
+    REQUIRE (text (veneer::params::air, 0.0f) == "0.0");
+    REQUIRE (text (veneer::params::amount, 137.0f) == "137");
+    REQUIRE (text (veneer::params::push, 3.0f) == "3.0");
+    REQUIRE (text (veneer::params::output, -4.0f) == "-4.0");
+
+    auto* input = find (processor, veneer::params::input);
+    REQUIRE (std::abs (input->convertFrom0to1 (input->getValueForText ("+4.5")) - 4.5f) < 0.06f);
+    REQUIRE (std::abs (input->convertFrom0to1 (input->getValueForText ("-3 dB")) + 3.0f) < 0.06f);
+}
+
+TEST_CASE ("the editor width is saved with the session and an old session has none", "[processor]")
+{
+    juce::ScopedJuceInitialiser_GUI init;
+    VeneerProcessor original;
+    REQUIRE (original.getEditorWidth() == 0);
+
+    juce::MemoryBlock fresh;
+    original.getStateInformation (fresh);
+
+    original.setEditorWidth (1140);
+    juce::MemoryBlock saved;
+    original.getStateInformation (saved);
+
+    VeneerProcessor restored;
+    restored.setStateInformation (saved.getData(), (int) saved.getSize());
+    REQUIRE (restored.getEditorWidth() == 1140);
+    REQUIRE_FALSE (restored.getState().state.hasProperty ("editorWidth"));
+
+    restored.setStateInformation (fresh.getData(), (int) fresh.getSize());
+    REQUIRE (restored.getEditorWidth() == 0);
+}
+
 TEST_CASE ("only matching mono and stereo layouts are accepted", "[processor]")
 {
     juce::ScopedJuceInitialiser_GUI init;

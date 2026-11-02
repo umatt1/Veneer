@@ -49,8 +49,16 @@ set(VENEER_DSP_SOURCES
     Source/dsp/Voicing.cpp
     Source/dsp/Widener.cpp)
 
+set(VENEER_UI_SOURCES
+    Source/PluginEditor.cpp
+    Source/ui/Artwork.cpp
+    Source/ui/Faceplate.cpp
+    Source/ui/LookAndFeel.cpp
+    Source/ui/MeterViews.cpp)
+
 target_sources(Veneer PRIVATE
     Source/PluginProcessor.cpp
+    ${VENEER_UI_SOURCES}
     ${VENEER_DSP_SOURCES})
 
 target_include_directories(Veneer PRIVATE Source)
@@ -79,7 +87,7 @@ if(APPLE)
     endforeach()
 endif()
 
-option(VENEER_BUILD_TOOLS "Build the offline render tool" OFF)
+option(VENEER_BUILD_TOOLS "Build the offline render and interface snapshot tools" OFF)
 
 if(VENEER_BUILD_TOOLS)
     add_executable(VeneerRender Tools/Render.cpp ${VENEER_DSP_SOURCES})
@@ -92,6 +100,22 @@ if(VENEER_BUILD_TOOLS)
 
     target_link_libraries(VeneerRender PRIVATE
         juce::juce_audio_formats
+        juce::juce_dsp
+        juce::juce_recommended_config_flags
+        juce::juce_recommended_warning_flags)
+
+    add_executable(VeneerSnapshot Tools/Snapshot.cpp Source/PluginProcessor.cpp ${VENEER_UI_SOURCES} ${VENEER_DSP_SOURCES})
+
+    target_include_directories(VeneerSnapshot PRIVATE Source)
+
+    target_compile_definitions(VeneerSnapshot PRIVATE
+        JUCE_WEB_BROWSER=0
+        JUCE_USE_CURL=0
+        JucePlugin_Name="Veneer"
+        JucePlugin_VersionString="${PROJECT_VERSION}")
+
+    target_link_libraries(VeneerSnapshot PRIVATE
+        juce::juce_audio_utils
         juce::juce_dsp
         juce::juce_recommended_config_flags
         juce::juce_recommended_warning_flags)
@@ -113,10 +137,12 @@ if(VENEER_BUILD_TESTS)
     add_executable(VeneerTests
         Tests/CompressorTests.cpp
         Tests/CrossoverTests.cpp
+        Tests/EditorTests.cpp
         Tests/EngineTests.cpp
         Tests/HalfbandTests.cpp
         Tests/LimiterTests.cpp
         Tests/LoudnessTests.cpp
+        Tests/MeterMathTests.cpp
         Tests/PerfTests.cpp
         Tests/ProcessorTests.cpp
         Tests/SaturatorTests.cpp
@@ -124,6 +150,7 @@ if(VENEER_BUILD_TESTS)
         Tests/VoicingTests.cpp
         Tests/WindowedTests.cpp
         Source/PluginProcessor.cpp
+        ${VENEER_UI_SOURCES}
         ${VENEER_DSP_SOURCES})
 
     target_include_directories(VeneerTests PRIVATE Source Tests)
@@ -131,7 +158,8 @@ if(VENEER_BUILD_TESTS)
     target_compile_definitions(VeneerTests PRIVATE
         JUCE_WEB_BROWSER=0
         JUCE_USE_CURL=0
-        JucePlugin_Name="Veneer")
+        JucePlugin_Name="Veneer"
+        JucePlugin_VersionString="${PROJECT_VERSION}")
 
     target_link_libraries(VeneerTests PRIVATE
         Catch2::Catch2WithMain

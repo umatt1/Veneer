@@ -34,13 +34,20 @@ public:
     void getStateInformation (juce::MemoryBlock& destData) override;
     void setStateInformation (const void* data, int sizeInBytes) override;
 
+    juce::AudioProcessorValueTreeState& getState() noexcept { return apvts; }
     veneer::Meters& getMeters() noexcept { return engine.getMeters(); }
+    void resetLoudness() noexcept { engine.requestIntegratedReset(); }
+
+    // kept with the session so a reopened editor comes back at the size it was left at; 0 means the default
+    int getEditorWidth() const noexcept { return editorWidth.load(); }
+    void setEditorWidth (int width) noexcept { editorWidth.store (width); }
 
 private:
     veneer::EngineParams readParams() const;
 
     juce::AudioProcessorValueTreeState apvts;
     veneer::Engine engine;
+    std::atomic<int> editorWidth { 0 };
 
     std::atomic<float>* inputParam = nullptr;
     std::atomic<float>* amountParam = nullptr;

@@ -13,7 +13,10 @@ input trim -> tone curve -> 3-band LR4 split -> per-band compressor -> saturator
 bypass: the input, delayed by the total latency, crossfaded in
 ```
 
-Meters tap the input after the trim and the final output.
+Meters tap the input after the trim and the final output. The engine publishes the last block's values
+(input RMS, per-band and limiter gain reduction, true peak, loudness) as atomics. It also keeps a second set that
+holds the largest gain reduction and true peak since the interface last took them, so a display that refreshes
+at 30 Hz sees every peak between refreshes.
 
 ## Latency
 
@@ -158,6 +161,9 @@ first stage's blind spot, changed nothing on any of the synthetic signals and co
 - Integrated loudness uses 400 ms blocks every 100 ms, the -70 LUFS absolute gate and the -10 LU relative
   gate. Blocks go into a fixed 0.01 LU histogram, so memory is constant and nothing allocates on the audio
   thread.
+- Resetting the integrated value starts a new measurement. It clears the histogram and adds no block until a
+  full 400 ms of audio after the reset has passed, so nothing from before it leaks into the first blocks. The
+  interface asks for a reset with a flag that the audio thread acts on at the start of its next block.
 
 ## Verification
 
@@ -186,5 +192,5 @@ saturators.
 
 ## Not built yet
 
-The interface (milestone 3), the sample-rate and block-size matrix, a pass over non-finite input and host
-testing (milestone 4), and CI on Windows and Linux (milestone 5).
+The sample-rate and block-size matrix, a pass over non-finite input and host testing (milestone 4), and CI on
+Windows and Linux (milestone 5). The interface is described in [UI.md](UI.md).

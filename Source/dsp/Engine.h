@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <atomic>
 #include <vector>
 
 #include <juce_audio_basics/juce_audio_basics.h>
@@ -42,7 +43,8 @@ public:
 
     int getLatencySamples() const noexcept { return latency; }
     Meters& getMeters() noexcept { return meters; }
-    void resetIntegratedLoudness() { loudness.resetIntegrated(); }
+    // safe from any thread: the audio thread clears the histogram at the start of its next block
+    void requestIntegratedReset() noexcept;
 
 private:
     using LinearSmoothed = juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear>;
@@ -62,6 +64,7 @@ private:
     double sampleRate = 44100.0;
     int numChannels = 2, latency = 0;
     bool initialised = false;
+    std::atomic<bool> integratedResetRequested { false };
 
     ShelfBellEq eq;
     Crossover crossover;

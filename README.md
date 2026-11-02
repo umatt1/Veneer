@@ -3,12 +3,13 @@
 A free, open-source finishing stage for your mix bus. Put it on the master channel, set the input
 level, and bring up **Amount** until the mix feels finished.
 
-> **Status: pre-alpha.** The signal chain is complete and tested: tone curve, multiband dynamics,
-> saturation, high-frequency widening, a true-peak limiter and loudness metering. There is no custom
-> interface yet (the host shows generic controls), and the voicing has been measured but not tuned by ear.
-> See [docs/VOICING.md](docs/VOICING.md) for what it does and how to audition it.
+> **Status: pre-alpha.** The signal chain and the interface are built and tested: tone curve, multiband
+> dynamics, saturation, high-frequency widening, a true-peak limiter, loudness metering and a scalable custom
+> interface. It has not been run in a host yet, and the voicing has been measured but not tuned by ear.
+> See [docs/VOICING.md](docs/VOICING.md) for what it does and how to audition it, and
+> [docs/UI.md](docs/UI.md) for the interface.
 
-## Planned controls
+## Controls
 
 | Control | What it does |
 |---|---|
@@ -18,9 +19,10 @@ level, and bring up **Amount** until the mix feels finished.
 | Push | How hard the limiter is driven. |
 | Output | Final trim after the limiter. |
 
-Meters show per-band gain reduction, limiter gain reduction, true peak and LUFS.
+Meters show the input level against a lit target band, per-band and limiter gain reduction, loudness (momentary,
+short-term and integrated LUFS) and true peak. The interface scales from 75% to 200%.
 
-Planned formats: VST3, AU and Standalone on macOS; VST3 and Standalone on Windows and Linux.
+Formats: VST3, AU and Standalone on macOS; VST3 and Standalone planned for Windows and Linux.
 
 ## How it compares
 
@@ -46,7 +48,7 @@ ctest --test-dir build-test --output-on-failure
 To reuse an existing JUCE checkout, add `-DFETCHCONTENT_SOURCE_DIR_JUCE=/path/to/JUCE`. Builds do
 not install anything into your plugin folders.
 
-### Hearing what it does without installing it
+### Seeing and hearing it without installing it
 
 `VeneerRender` runs a WAV file through the same engine and prints loudness and peak figures:
 
@@ -57,6 +59,14 @@ build-tools/VeneerRender in.wav out.wav --amount 100 --push 3 --match
 ```
 
 `--match` scales the output to the input's integrated loudness so two settings can be compared at equal level.
+
+`VeneerSnapshot` draws the real interface offscreen to a PNG, with the meters filled by playing a WAV through the
+processor first. It opens no window and touches no audio device (see [docs/UI.md](docs/UI.md)):
+
+```sh
+cmake --build build-tools --target VeneerSnapshot -j4
+build-tools/VeneerSnapshot shot.png --wav in.wav --seconds 8 --pixels 2
+```
 
 ## License
 

@@ -9,6 +9,9 @@ Veneer is an independent implementation. It has its own name, artwork, DSP and d
   (ADAA) for waveshapers.
 - Publicly available, general descriptions of what a one-knob mix-bus "finisher" does: multiband
   dynamics, harmonic saturation, tone shaping, high-frequency widening, limiting.
+- The usual control set of such tools: an input trim, one overall amount, per-band controls, a limiter push, an
+  output trim, gain-reduction and loudness meters. That is how the tool is operated. The artwork, layout,
+  colours, labels and wording are original, and the interface is drawn in code with no image files.
 - Our own listening and measurements of Veneer itself.
 
 ## What we did not use

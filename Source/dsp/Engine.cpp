@@ -14,7 +14,7 @@ constexpr double gainRampSeconds = 0.02;
 constexpr double amountRampSeconds = 0.05;
 constexpr double bypassRampSeconds = 0.01;
 constexpr double inputMeterSeconds = 0.3;
-constexpr float silenceDb = -100.0f;
+constexpr float silenceDb = Meters::silenceDb;
 
 float dbToGain (float db) noexcept
 {
@@ -89,6 +89,12 @@ void Engine::reset()
     initialised = false;
 }
 
+void Engine::requestIntegratedReset() noexcept
+{
+    integratedResetRequested.store (true, std::memory_order_relaxed);
+    meters.integratedLufs.store (silenceDb, std::memory_order_relaxed);
+}
+
 void Engine::setTargets (const EngineParams& p)
 {
     const std::array<float, numBands> focusDb { p.weightDb, p.bodyDb, p.airDb };
@@ -146,6 +152,9 @@ void Engine::process (juce::AudioBuffer<float>& buffer, const EngineParams& para
     if (activeChannels == 0 || numSamples == 0)
         return;
 
+    if (integratedResetRequested.exchange (false, std::memory_order_relaxed))
+        loudness.resetIntegrated();
+
     setTargets (params);
 
     std::array<float*, maxChannels> data {};
@@ -173,6 +182,7 @@ void Engine::process (juce::AudioBuffer<float>& buffer, const EngineParams& para
     meters.momentaryLufs.store (loudness.getMomentary(), std::memory_order_relaxed);
     meters.shortTermLufs.store (loudness.getShortTerm(), std::memory_order_relaxed);
     meters.integratedLufs.store (loudness.getIntegrated(), std::memory_order_relaxed);
+    meters.hold ({ stats.bandGrDb, stats.limiterGrDb, gainToDb (stats.truePeak) });
 }
 
 void Engine::processFrame (float* const* data, int index, BlockStats& stats)

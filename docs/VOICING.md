@@ -1,7 +1,8 @@
 # Voicing
 
 What the sound stages do, the numbers behind them, and what has and has not been checked. Every
-taste-dependent constant lives in `Source/dsp/Voicing.cpp`.
+taste-dependent constant lives in `Source/dsp/Voicing.cpp`, apart from the crossover frequencies, the widener
+shelf and the Input meter's target band, which are in `Voicing.h`.
 
 **These settings were set from measurements and standard mastering practice. They have not been tuned by
 ear.** The figures below describe what the processing does to test signals. Whether that sounds good is for

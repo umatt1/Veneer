@@ -96,6 +96,7 @@ void LoudnessMeter::resetIntegrated()
 {
     std::fill (binEnergy.begin(), binEnergy.end(), 0.0);
     std::fill (binCount.begin(), binCount.end(), 0);
+    integratedSubblocks = 0;
     integrated.store ((float) floorLufs);
 }
 
@@ -136,6 +137,7 @@ void LoudnessMeter::finishSubblock() noexcept
 
     subblockFill = 0;
     ++subblocksSeen;
+    ++integratedSubblocks;
 
     auto windowMeanSquare = [this] (int subblocks)
     {
@@ -159,7 +161,7 @@ void LoudnessMeter::finishSubblock() noexcept
     momentary.store (energyToLufs (momentaryMs), std::memory_order_relaxed);
     shortTerm.store (energyToLufs (windowMeanSquare (shortTermSubblocks)), std::memory_order_relaxed);
 
-    if (subblocksSeen >= momentarySubblocks && subblocksSeen % gatingHopSubblocks == 0)
+    if (integratedSubblocks >= momentarySubblocks && subblocksSeen % gatingHopSubblocks == 0)
         addGatingBlock (momentaryMs);
 
     historyPosition = (historyPosition + 1) % shortTermSubblocks;

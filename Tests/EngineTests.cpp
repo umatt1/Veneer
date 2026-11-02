@@ -319,6 +319,57 @@ TEST_CASE ("meters read sensible values", "[engine]")
     REQUIRE (m.truePeakDb.load() < -20.0f);
 }
 
+TEST_CASE ("held meters keep the largest value until they are taken", "[engine]")
+{
+    auto params = neutral();
+    params.amountPercent = 100.0f;
+    params.pushDb = 12.0f;
+
+    veneer::Engine engine;
+    engine.prepare (fs, 2);
+
+    auto signal = testutil::dualMono (testutil::sine (1000.0, 0.9, fs, 9600));
+    signal.left.resize (96000, 0.0f);
+    signal.right.resize (96000, 0.0f);
+    testutil::render (engine, params, signal, 64);
+
+    auto& m = engine.getMeters();
+    REQUIRE (m.limiterGrDb.load() < 0.5f);
+    REQUIRE (m.bandGrDb[1].load() < 0.5f);
+    REQUIRE (m.truePeakDb.load() < -90.0f);
+
+    const auto held = m.takeHeld();
+    REQUIRE (held.limiterGrDb > 6.0f);
+    REQUIRE (held.bandGrDb[1] > 1.0f);
+    REQUIRE (std::abs (held.truePeakDb + 1.3f) < 0.5f);
+
+    const auto again = m.takeHeld();
+    REQUIRE (testutil::bitEqual (again.limiterGrDb, 0.0f));
+    REQUIRE (testutil::bitEqual (again.bandGrDb[1], 0.0f));
+    REQUIRE (testutil::bitEqual (again.truePeakDb, veneer::Meters::silenceDb));
+}
+
+TEST_CASE ("an integrated loudness reset clears what was measured before it", "[engine]")
+{
+    veneer::Engine engine;
+    engine.prepare (fs, 2);
+
+    double phase = 0.0;
+    std::vector<float> loud, quiet;
+    testutil::appendTone (loud, phase, fs, -20.0, 6.0);
+    testutil::appendTone (quiet, phase, fs, -28.0, 6.0);
+
+    testutil::render (engine, neutral(), testutil::dualMono (loud));
+    const auto& m = engine.getMeters();
+    REQUIRE (std::abs (m.integratedLufs.load() + 20.0f) < 0.3f);
+
+    engine.requestIntegratedReset();
+    REQUIRE (testutil::bitEqual (m.integratedLufs.load(), veneer::Meters::silenceDb));
+
+    testutil::render (engine, neutral(), testutil::dualMono (quiet));
+    REQUIRE (std::abs (m.integratedLufs.load() + 28.0f) < 0.3f);
+}
+
 TEST_CASE ("quiet signals follow the tone curve", "[engine]")
 {
     auto params = neutral();

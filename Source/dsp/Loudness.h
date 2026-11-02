@@ -51,7 +51,7 @@ private:
 
     std::array<Channel, maxChannels> channels;
     int numChannels = 2;
-    int subblockLength = 480, subblockFill = 0, subblocksSeen = 0, historyPosition = 0;
+    int subblockLength = 480, subblockFill = 0, subblocksSeen = 0, integratedSubblocks = 0, historyPosition = 0;
 
     std::vector<double> binEnergy;
     std::vector<int> binCount;
