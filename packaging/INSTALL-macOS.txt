@@ -1,0 +1,19 @@
+Veneer
+======
+
+Copy the parts you want:
+
+  Veneer.vst3       to  ~/Library/Audio/Plug-Ins/VST3/
+  Veneer.component  to  ~/Library/Audio/Plug-Ins/Components/    (Audio Unit)
+  Veneer.app        to  /Applications/                          (stand-alone)
+
+These builds are signed ad hoc, not with an Apple Developer ID, and they are not notarised, so macOS
+blocks them the first time. After copying, clear the download flag from whatever you installed:
+
+  xattr -dr com.apple.quarantine ~/Library/Audio/Plug-Ins/VST3/Veneer.vst3
+  xattr -dr com.apple.quarantine ~/Library/Audio/Plug-Ins/Components/Veneer.component
+  xattr -dr com.apple.quarantine /Applications/Veneer.app
+
+Then rescan plug-ins in your host.
+
+Veneer is free software under the GNU AGPL-3.0 (see LICENSE). Third-party notices are in NOTICE.md.
