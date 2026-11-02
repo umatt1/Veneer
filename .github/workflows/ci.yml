@@ -1,0 +1,174 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PLUGINVAL_VERSION: v1.0.4
+  PLUGINVAL_MACOS_SHA256: 3c4c533bda0c5059eea3ddaea752d757ee2025041f0f47e6bcb0e87f6082b29f
+
+jobs:
+  build:
+    name: Build and test (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macOS
+            os: macos-latest
+          - name: Linux
+            os: ubuntu-latest
+          - name: Windows
+            os: windows-latest
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install Linux packages
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            fonts-dejavu-core libasound2-dev libfontconfig1-dev libfreetype-dev libgl1-mesa-dev libx11-dev \
+            libxcomposite-dev libxcursor-dev libxext-dev libxinerama-dev libxrandr-dev libxrender-dev xvfb
+
+      - name: Configure
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DVENEER_BUILD_TESTS=ON
+
+      - name: Build
+        run: cmake --build build --config Release --parallel 4
+
+      - name: Test (Linux, virtual display)
+        if: runner.os == 'Linux'
+        run: xvfb-run -a ctest --test-dir build --build-config Release --output-on-failure --no-tests=error --output-junit "$GITHUB_WORKSPACE/junit.xml"
+
+      - name: Test
+        if: runner.os != 'Linux'
+        run: ctest --test-dir build --build-config Release --output-on-failure --no-tests=error --output-junit "${{ github.workspace }}/junit.xml"
+
+      - name: Summarise test results
+        if: always()
+        shell: python
+        env:
+          MATRIX_NAME: ${{ matrix.name }}
+        run: |
+          import os
+          import xml.etree.ElementTree as ET
+
+          path = os.path.join(os.environ["GITHUB_WORKSPACE"], "junit.xml")
+
+          if os.path.exists(path):
+              cases = list(ET.parse(path).getroot().iter("testcase"))
+              failed = [c.get("name") for c in cases if c.find("failure") is not None or c.find("error") is not None]
+              skipped = [c for c in cases if c.find("skipped") is not None]
+              line = f"{os.environ['MATRIX_NAME']}: {len(cases)} tests, {len(failed)} failed, {len(skipped)} skipped"
+
+              with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as summary:
+                  summary.write(line + "\n\n")
+
+              print(line)
+
+      - name: Install pluginval (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          curl -fsSL -o pluginval.zip "https://github.com/Tracktion/pluginval/releases/download/${PLUGINVAL_VERSION}/pluginval_macOS.zip"
+          echo "${PLUGINVAL_MACOS_SHA256}  pluginval.zip" | shasum -a 256 -c -
+          mkdir pluginval-app
+          unzip -q pluginval.zip -d pluginval-app
+
+      # The runner is a throwaway VM, so installing the plug-ins here is what lets auval and the AU validation see them.
+      - name: Validate VST3 and AU (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          pluginval="$PWD/pluginval-app/pluginval.app/Contents/MacOS/pluginval"
+          artefacts=build/Veneer_artefacts/Release
+          mkdir -p ~/Library/Audio/Plug-Ins/Components ~/Library/Audio/Plug-Ins/VST3
+          cp -R "$artefacts/AU/Veneer.component" ~/Library/Audio/Plug-Ins/Components/
+          cp -R "$artefacts/VST3/Veneer.vst3" ~/Library/Audio/Plug-Ins/VST3/
+
+          "$pluginval" --strictness-level 10 --validate ~/Library/Audio/Plug-Ins/VST3/Veneer.vst3
+
+          killall -9 AudioComponentRegistrar || true
+          sleep 5
+          auval -v aufx Vnr1 Vnrp | tee auval.log
+          grep -q "AU VALIDATION SUCCEEDED" auval.log
+
+          "$pluginval" --strictness-level 10 --validate ~/Library/Audio/Plug-Ins/Components/Veneer.component
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: test-results-${{ matrix.name }}
+          path: junit.xml
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Upload plug-in builds
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: Veneer-${{ matrix.name }}-dev-build
+          path: |
+            build/Veneer_artefacts/Release/VST3
+            build/Veneer_artefacts/Release/AU
+            build/Veneer_artefacts/Release/Standalone
+          if-no-files-found: error
+          retention-days: 7
+
+  debug-assertions:
+    name: Debug build with assertions (Linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install Linux packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            fonts-dejavu-core libasound2-dev libfontconfig1-dev libfreetype-dev libgl1-mesa-dev libx11-dev \
+            libxcomposite-dev libxcursor-dev libxext-dev libxinerama-dev libxrandr-dev libxrender-dev xvfb
+
+      - name: Configure
+        run: cmake -S . -B build-debug -DCMAKE_BUILD_TYPE=Debug -DVENEER_BUILD_TESTS=ON
+
+      - name: Build
+        run: cmake --build build-debug --target VeneerTests --parallel 4
+
+      # JUCE only logs a failed jassert when no debugger is attached, so the test run is searched for it.
+      - name: Test
+        run: |
+          status=0
+          xvfb-run -a build-debug/VeneerTests --reporter JUnit::out=junit-debug.xml --reporter console::out=console.txt > stdout.txt 2> stderr.txt || status=$?
+          tail -n 4 console.txt
+          if grep -l "JUCE Assertion failure" stdout.txt stderr.txt console.txt; then
+            echo "::error::a JUCE assertion fired during the tests"
+            status=1
+          fi
+          exit $status
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: test-results-Linux-debug
+          path: |
+            junit-debug.xml
+            stderr.txt
+          if-no-files-found: ignore
+          retention-days: 14
