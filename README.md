@@ -26,9 +26,30 @@ level, and bring up **Amount** until the mix feels finished.
 Meters show the input level against a lit target band, per-band and limiter gain reduction, loudness (momentary,
 short-term and integrated LUFS) and true peak. The interface scales from 75% to 200%.
 
-Formats: VST3, AU and Standalone on macOS. VST3 and Standalone builds for Windows and Linux come out of CI, which
-runs the unit tests on them, but nobody has tried them in a host yet. Each CI run keeps its builds for a week as
-artifacts.
+Formats: VST3, AU and Standalone on macOS (universal, Apple silicon and Intel). VST3 and Standalone for Windows and
+Linux. CI runs the unit tests on the Windows and Linux builds, but nobody has tried them in a host yet.
+
+## Install
+
+Download the file for your system from the [Releases page](https://github.com/umatt1/Veneer/releases). The first
+release is a pre-release, so GitHub does not mark it "latest".
+
+| System | File | Copy it to |
+|---|---|---|
+| macOS | `Veneer-<version>-macOS.zip` | `Veneer.vst3` to `~/Library/Audio/Plug-Ins/VST3/`, `Veneer.component` to `~/Library/Audio/Plug-Ins/Components/` |
+| Windows | `Veneer-<version>-Windows.zip` | the `Veneer.vst3` folder to `C:\Program Files\Common Files\VST3\` |
+| Linux | `Veneer-<version>-Linux.tar.gz` | the `Veneer.vst3` folder to `~/.vst3/` |
+
+Then rescan plug-ins in your host. The macOS builds are signed ad hoc and not notarised, so macOS blocks them until
+you clear the download flag from what you installed:
+
+```sh
+xattr -dr com.apple.quarantine ~/Library/Audio/Plug-Ins/VST3/Veneer.vst3
+xattr -dr com.apple.quarantine ~/Library/Audio/Plug-Ins/Components/Veneer.component
+```
+
+Each archive has an `INSTALL.txt` with the same steps, and the release has a `SHA256SUMS.txt` for checking the
+downloads.
 
 ## How it compares
 
