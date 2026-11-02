@@ -32,17 +32,24 @@ void Engine::prepare (double newSampleRate, int channels)
     sampleRate = newSampleRate;
     numChannels = std::clamp (channels, 1, maxChannels);
 
+    eq.prepare (sampleRate);
     crossover.prepare (sampleRate, numChannels);
     crossover.setFrequencies (voicing::lowCrossoverHz, voicing::highCrossoverHz);
 
     for (auto& c : compressors)
         c.prepare (sampleRate);
 
+    for (auto& s : saturators)
+        s.prepare (sampleRate);
+
+    widener.prepare (sampleRate);
     limiter.prepare (sampleRate, numChannels);
     loudness.prepare (sampleRate, numChannels);
 
+    latency = Saturator::latencySamples + limiter.getLatencySamples();
+
     for (auto& d : dryDelay)
-        d.assign ((size_t) limiter.getLatencySamples(), 0.0f);
+        d.assign ((size_t) latency, 0.0f);
 
     for (auto* s : { &inputGain, &pushGain, &outputGain })
         s->reset (sampleRate, gainRampSeconds);
@@ -60,11 +67,16 @@ void Engine::prepare (double newSampleRate, int channels)
 
 void Engine::reset()
 {
+    eq.reset();
     crossover.reset();
 
     for (auto& c : compressors)
         c.reset();
 
+    for (auto& s : saturators)
+        s.reset();
+
+    widener.reset();
     limiter.reset();
     loudness.reset();
     outputPeak.reset();
@@ -111,8 +123,17 @@ void Engine::updateBandSettings (int length)
 {
     const auto currentAmount = amount.getCurrentValue();
 
-    for (int b = 0; b < numBands; ++b)
-        compressors[(size_t) b].setSettings (voicing::compressorSettings (b, currentAmount));
+    for (size_t b = 0; b < (size_t) numBands; ++b)
+    {
+        const auto band = (int) b;
+        const auto focusDb = gainToDb (focusGain[b].getCurrentValue());
+
+        compressors[b].setSettings (voicing::compressorSettings (band, currentAmount));
+        saturators[b].setShape (voicing::saturatorDrive (band, currentAmount, focusDb), voicing::saturatorBias (band));
+    }
+
+    eq.setSections (voicing::eqSections (currentAmount));
+    widener.setShelf (voicing::widenerHz, voicing::widenerQ, voicing::widenerBoostDb (currentAmount));
 
     amount.skip (length);
 }
@@ -173,7 +194,7 @@ void Engine::processFrame (float* const* data, int index, BlockStats& stats)
     std::array<std::array<float, maxChannels>, numBands> bands {};
 
     for (int ch = 0; ch < numChannels; ++ch)
-        crossover.process (ch, input[(size_t) ch], bands[0][(size_t) ch], bands[1][(size_t) ch], bands[2][(size_t) ch]);
+        crossover.process (ch, eq.process (ch, input[(size_t) ch]), bands[0][(size_t) ch], bands[1][(size_t) ch], bands[2][(size_t) ch]);
 
     for (size_t b = 0; b < (size_t) numBands; ++b)
     {
@@ -182,12 +203,16 @@ void Engine::processFrame (float* const* data, int index, BlockStats& stats)
         for (int ch = 0; ch < numChannels; ++ch)
             linked = std::max (linked, bands[b][(size_t) ch] * bands[b][(size_t) ch]);
 
-        const auto gain = compressors[b].process (linked) * focusGain[b].getNextValue();
+        const auto compression = compressors[b].process (linked);
+        const auto focus = focusGain[b].getNextValue();
         stats.bandGrDb[b] = std::max (stats.bandGrDb[b], compressors[b].getGainReductionDb());
 
         for (int ch = 0; ch < numChannels; ++ch)
-            wet[(size_t) ch] += bands[b][(size_t) ch] * gain;
+            wet[(size_t) ch] += saturators[b].process (ch, bands[b][(size_t) ch] * compression) * focus;
     }
+
+    if (numChannels == 2)
+        widener.process (wet[0], wet[1]);
 
     const auto push = pushGain.getNextValue();
 
@@ -218,7 +243,7 @@ void Engine::processFrame (float* const* data, int index, BlockStats& stats)
         framePeak = std::max (framePeak, outputPeak.process (ch, out[(size_t) ch]));
     }
 
-    dryPosition = (dryPosition + 1) % (size_t) limiter.getLatencySamples();
+    dryPosition = (dryPosition + 1) % (size_t) latency;
     stats.truePeak = std::max (stats.truePeak, framePeak);
 
     loudness.processFrame (out.data());

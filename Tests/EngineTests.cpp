@@ -6,6 +6,9 @@
 
 #include "TestUtils.h"
 #include "dsp/Engine.h"
+#include "dsp/ShelfBellEq.h"
+#include "dsp/Voicing.h"
+#include "dsp/Widener.h"
 
 namespace
 {
@@ -25,6 +28,11 @@ testutil::Stereo process (const veneer::EngineParams& params, const testutil::St
     auto& engine = engineOut != nullptr ? *engineOut : local;
     engine.prepare (fs, 2);
     return testutil::render (engine, params, in);
+}
+
+double levelChangeDb (const std::vector<float>& in, const std::vector<float>& out)
+{
+    return testutil::linearToDb (testutil::rms (out, 24000, 48000) / testutil::rms (in, 24000, 48000));
 }
 
 bool allFinite (const testutil::Stereo& s)
@@ -309,4 +317,145 @@ TEST_CASE ("meters read sensible values", "[engine]")
     REQUIRE (std::abs (m.inputRmsDb.load() + 26.02f) < 0.3f);
     REQUIRE (testutil::bitEqual (m.limiterGrDb.load(), 0.0f));
     REQUIRE (m.truePeakDb.load() < -20.0f);
+}
+
+TEST_CASE ("quiet signals follow the tone curve", "[engine]")
+{
+    auto params = neutral();
+    params.amountPercent = 100.0f;
+
+    veneer::ShelfBellEq eq;
+    eq.prepare (fs);
+    eq.setSections (veneer::voicing::eqSections (100.0f));
+
+    std::vector<double> h (16384);
+
+    for (size_t n = 0; n < h.size(); ++n)
+        h[n] = (double) eq.process (0, n == 0 ? 1.0f : 0.0f);
+
+    for (const double f : { 40.0, 200.0, 900.0, 5000.0, 9000.0, 15000.0 })
+    {
+        const auto in = testutil::dualMono (testutil::sine (f, 0.001, fs, 48000));
+        const auto out = process (params, in);
+
+        const auto measured = levelChangeDb (in.left, out.left);
+        const auto designed = testutil::magnitudeDb (h, f, fs);
+
+        INFO ("frequency " << f << " Hz: engine " << measured << " dB, tone curve " << designed << " dB");
+        REQUIRE (std::abs (measured - designed) < 0.1);
+    }
+}
+
+TEST_CASE ("widening acts on side content only", "[engine]")
+{
+    auto params = neutral();
+    params.amountPercent = 100.0f;
+
+    constexpr double f = 10000.0;
+    const auto tone = testutil::sine (f, 0.001, fs, 48000);
+    auto inverted = tone;
+
+    for (auto& v : inverted)
+        v = -v;
+
+    const auto mid = process (params, testutil::dualMono (tone));
+    const auto side = process (params, { tone, inverted });
+
+    veneer::Widener widener;
+    widener.prepare (fs);
+    widener.setShelf (veneer::voicing::widenerHz, veneer::voicing::widenerQ, veneer::voicing::widenerBoostDb (100.0f));
+
+    std::vector<double> h (16384);
+
+    for (size_t n = 0; n < h.size(); ++n)
+    {
+        auto left = n == 0 ? 0.5f : 0.0f;
+        auto right = -left;
+        widener.process (left, right);
+        h[n] = (double) left - (double) right;
+    }
+
+    const auto expected = testutil::magnitudeDb (h, f, fs);
+    const auto measured = levelChangeDb (tone, side.left) - levelChangeDb (tone, mid.left);
+
+    INFO ("side over mid: engine " << measured << " dB, widener " << expected << " dB");
+    REQUIRE (expected > 1.0);
+    REQUIRE (std::abs (measured - expected) < 0.1);
+}
+
+TEST_CASE ("amount adds harmonics and amount zero adds none", "[engine]")
+{
+    auto distortionDb = [] (double levelDb, float amount)
+    {
+        const auto tone = testutil::dualMono (testutil::sine (1000.0, testutil::dbToLinear (levelDb), fs, 144000));
+
+        auto params = neutral();
+        params.amountPercent = amount;
+        const auto out = process (params, tone);
+
+        double harmonics = 0.0;
+
+        for (int h = 2; h <= 5; ++h)
+        {
+            const auto a = testutil::amplitudeAt (out.left, 96000, 48000, 1000.0 * h, fs);
+            harmonics += a * a;
+        }
+
+        return 10.0 * std::log10 (harmonics + 1.0e-30) - testutil::linearToDb (testutil::amplitudeAt (out.left, 96000, 48000, 1000.0, fs));
+    };
+
+    const auto none = distortionDb (-12.0, 0.0f);
+    const auto normal = distortionDb (-12.0, 100.0f);
+    const auto quietNormal = distortionDb (-30.0, 100.0f);
+    const auto quietHeavy = distortionDb (-30.0, 200.0f);
+
+    std::printf ("engine, 1 kHz, harmonics 2-5 re fundamental: -12 dBFS amount 0 %+.1f dB, amount 100 %+.1f dB; -30 dBFS amount 100 %+.1f dB, amount 200 %+.1f dB\n",
+                 none, normal, quietNormal, quietHeavy);
+
+    // at -12 dBFS the compressors act first, so deeper compression offsets most of the extra drive;
+    // at -30 dBFS they are idle and distortion follows the drive
+    CHECK (none < -100.0);
+    CHECK (normal > -50.0);
+    CHECK (normal < -35.0);
+    CHECK (quietHeavy > quietNormal + 3.0);
+}
+
+TEST_CASE ("moving amount does not click", "[engine]")
+{
+    const auto in = testutil::dualMono (testutil::sine (1000.0, 0.3, fs, 96000));
+
+    auto largestStep = [] (const std::vector<float>& x, size_t from)
+    {
+        double step = 0.0;
+
+        for (size_t n = from + 1; n < x.size(); ++n)
+            step = std::max (step, (double) std::abs (x[n] - x[n - 1]));
+
+        return step;
+    };
+
+    auto params = neutral();
+    const auto steady0 = largestStep (process (params, in).left, 4800);
+
+    params.amountPercent = 200.0f;
+    const auto steady200 = largestStep (process (params, in).left, 4800);
+
+    veneer::Engine engine;
+    engine.prepare (fs, 2);
+
+    params.amountPercent = 0.0f;
+    const testutil::Stereo first { { in.left.begin(), in.left.begin() + 48000 }, { in.right.begin(), in.right.begin() + 48000 } };
+    const testutil::Stereo second { { in.left.begin() + 48000, in.left.end() }, { in.right.begin() + 48000, in.right.end() } };
+
+    auto a = testutil::render (engine, params, first);
+    params.amountPercent = 200.0f;
+    auto b = testutil::render (engine, params, second);
+
+    auto joined = a.left;
+    joined.insert (joined.end(), b.left.begin(), b.left.end());
+
+    const auto moving = largestStep (joined, 4800);
+
+    std::printf ("engine, amount 0 to 200 at 1 kHz: largest step %.4f (steady %.4f at 0, %.4f at 200)\n", moving, steady0, steady200);
+    CHECK (moving < 1.2 * std::max (steady0, steady200));
 }

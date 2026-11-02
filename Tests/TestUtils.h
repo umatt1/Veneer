@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <complex>
 #include <cstdint>
 #include <cstring>
 #include <random>
@@ -76,6 +77,28 @@ inline std::vector<float> pinkNoise (double amplitude, int numSamples, unsigned 
         x[i] = (float) (y[i] / largest * amplitude);
 
     return x;
+}
+
+// magnitude of the DFT of an impulse response at one frequency
+inline double magnitudeDb (const std::vector<double>& h, double freqHz, double sampleRate)
+{
+    std::complex<double> acc;
+
+    for (size_t n = 0; n < h.size(); ++n)
+        acc += h[n] * std::polar (1.0, -2.0 * pi * freqHz * (double) n / sampleRate);
+
+    return linearToDb (std::abs (acc));
+}
+
+// amplitude of the component at freqHz; exact when the window holds a whole number of cycles
+inline double amplitudeAt (const std::vector<float>& x, int from, int count, double freqHz, double sampleRate)
+{
+    std::complex<double> acc;
+
+    for (int n = from; n < from + count; ++n)
+        acc += (double) x[(size_t) n] * std::polar (1.0, -2.0 * pi * freqHz * (double) n / sampleRate);
+
+    return 2.0 * std::abs (acc) / (double) count;
 }
 
 inline double rms (const std::vector<float>& x, int from, int to)

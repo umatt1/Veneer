@@ -21,13 +21,16 @@ struct Options
 {
     std::string input, output, jsonPath;
     veneer::EngineParams params;
+    bool matchLoudness = false;
 };
 
 void usage()
 {
     std::fprintf (stderr,
                   "usage: VeneerRender <in.wav> <out.wav> [--input dB] [--amount %%] [--weight dB] [--body dB]\n"
-                  "                    [--air dB] [--push dB] [--output dB] [--ceiling dBTP] [--bypass] [--json file]\n");
+                  "                    [--air dB] [--push dB] [--output dB] [--ceiling dBTP] [--bypass] [--match] [--json file]\n"
+                  "defaults are the plugin's: amount 100, push 3, ceiling -1; --match scales the written file to the\n"
+                  "input's integrated loudness so settings can be compared at equal level\n");
 }
 
 bool parse (int argc, char** argv, Options& o)
@@ -45,6 +48,12 @@ bool parse (int argc, char** argv, Options& o)
         if (flag == "--bypass")
         {
             o.params.bypass = true;
+            continue;
+        }
+
+        if (flag == "--match")
+        {
+            o.matchLoudness = true;
             continue;
         }
 
@@ -113,6 +122,7 @@ Measurement measure (const juce::AudioBuffer<float>& audio, double sampleRate, i
 int main (int argc, char** argv)
 {
     Options options;
+    options.params.pushDb = 3.0f;
 
     if (! parse (argc, argv, options))
     {
@@ -149,7 +159,8 @@ int main (int argc, char** argv)
         processed.copyFrom (ch, 0, audio, ch, 0, length);
 
     float maxLimiterGr = 0.0f;
-    std::array<float, veneer::Engine::numBands> maxBandGr {};
+    std::array<float, veneer::Engine::numBands> maxBandGr {}, sumBandGr {};
+    int blocks = 0;
 
     for (int start = 0; start < processed.getNumSamples(); start += blockSize)
     {
@@ -161,13 +172,30 @@ int main (int argc, char** argv)
         maxLimiterGr = std::max (maxLimiterGr, meters.limiterGrDb.load());
 
         for (size_t b = 0; b < maxBandGr.size(); ++b)
+        {
             maxBandGr[b] = std::max (maxBandGr[b], meters.bandGrDb[b].load());
+            sumBandGr[b] += meters.bandGrDb[b].load();
+        }
+
+        ++blocks;
     }
 
     juce::AudioBuffer<float> aligned (channels, length);
 
     for (int ch = 0; ch < channels; ++ch)
         aligned.copyFrom (ch, 0, processed, ch, latency, length);
+
+    const auto before = measure (audio, sampleRate, 0);
+    auto after = measure (aligned, sampleRate, 0);
+    float matchGainDb = 0.0f;
+
+    if (options.matchLoudness && before.integratedLufs > -70.0f && after.integratedLufs > -70.0f)
+    {
+        // never match upwards into clipping
+        matchGainDb = std::min (before.integratedLufs - after.integratedLufs, -after.samplePeakDb - 0.1f);
+        aligned.applyGain (std::pow (10.0f, matchGainDb / 20.0f));
+        after = measure (aligned, sampleRate, 0);
+    }
 
     juce::File outFile (options.output);
     outFile.deleteFile();
@@ -192,21 +220,21 @@ int main (int argc, char** argv)
         writer->writeFromAudioSampleBuffer (aligned, 0, length);
     }
 
-    const auto before = measure (audio, sampleRate, 0);
-    const auto after = measure (aligned, sampleRate, 0);
-
     char json[1024];
     std::snprintf (json, sizeof (json),
                    "{\n"
                    "  \"sampleRate\": %.0f,\n  \"channels\": %d,\n  \"seconds\": %.3f,\n  \"latencySamples\": %d,\n"
+                   "  \"matchGainDb\": %.2f,\n"
                    "  \"input\":  { \"integratedLufs\": %.2f, \"maxShortTermLufs\": %.2f, \"truePeakDb\": %.2f },\n"
                    "  \"output\": { \"integratedLufs\": %.2f, \"maxShortTermLufs\": %.2f, \"truePeakDb\": %.2f, \"samplePeakDb\": %.2f },\n"
-                   "  \"maxGainReductionDb\": { \"low\": %.2f, \"mid\": %.2f, \"high\": %.2f, \"limiter\": %.2f }\n"
+                   "  \"maxGainReductionDb\": { \"low\": %.2f, \"mid\": %.2f, \"high\": %.2f, \"limiter\": %.2f },\n"
+                   "  \"meanGainReductionDb\": { \"low\": %.2f, \"mid\": %.2f, \"high\": %.2f }\n"
                    "}\n",
-                   sampleRate, channels, (double) length / sampleRate, latency,
+                   sampleRate, channels, (double) length / sampleRate, latency, (double) matchGainDb,
                    (double) before.integratedLufs, (double) before.maxShortTermLufs, (double) before.truePeakDb,
                    (double) after.integratedLufs, (double) after.maxShortTermLufs, (double) after.truePeakDb, (double) after.samplePeakDb,
-                   (double) maxBandGr[0], (double) maxBandGr[1], (double) maxBandGr[2], (double) maxLimiterGr);
+                   (double) maxBandGr[0], (double) maxBandGr[1], (double) maxBandGr[2], (double) maxLimiterGr,
+                   (double) (sumBandGr[0] / (float) blocks), (double) (sumBandGr[1] / (float) blocks), (double) (sumBandGr[2] / (float) blocks));
 
     std::fputs (json, stdout);
 

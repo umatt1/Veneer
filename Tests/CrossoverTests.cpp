@@ -1,7 +1,6 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <cmath>
-#include <complex>
 #include <vector>
 
 #include "TestUtils.h"
@@ -36,15 +35,7 @@ Responses impulseResponses (double sampleRate, int length)
     return r;
 }
 
-double magnitudeDb (const std::vector<double>& h, double freqHz, double sampleRate)
-{
-    std::complex<double> acc;
-
-    for (size_t n = 0; n < h.size(); ++n)
-        acc += h[n] * std::polar (1.0, -2.0 * testutil::pi * freqHz * (double) n / sampleRate);
-
-    return testutil::linearToDb (std::abs (acc));
-}
+using testutil::magnitudeDb;
 }
 
 TEST_CASE ("crossover bands sum to a flat magnitude", "[crossover]")

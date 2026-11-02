@@ -3,9 +3,10 @@
 A free, open-source finishing stage for your mix bus. Put it on the master channel, set the input
 level, and bring up **Amount** until the mix feels finished.
 
-> **Status: pre-alpha.** The multiband dynamics, true-peak limiter and loudness metering are implemented and
-> tested. There is no custom interface yet (the host shows generic controls), and the tone, saturation and
-> widening stages are not built. The sound is not tuned.
+> **Status: pre-alpha.** The signal chain is complete and tested: tone curve, multiband dynamics,
+> saturation, high-frequency widening, a true-peak limiter and loudness metering. There is no custom
+> interface yet (the host shows generic controls), and the voicing has been measured but not tuned by ear.
+> See [docs/VOICING.md](docs/VOICING.md) for what it does and how to audition it.
 
 ## Planned controls
 
@@ -44,6 +45,18 @@ ctest --test-dir build-test --output-on-failure
 
 To reuse an existing JUCE checkout, add `-DFETCHCONTENT_SOURCE_DIR_JUCE=/path/to/JUCE`. Builds do
 not install anything into your plugin folders.
+
+### Hearing what it does without installing it
+
+`VeneerRender` runs a WAV file through the same engine and prints loudness and peak figures:
+
+```sh
+cmake -S . -B build-tools -DVENEER_BUILD_TOOLS=ON
+cmake --build build-tools --target VeneerRender -j4
+build-tools/VeneerRender in.wav out.wav --amount 100 --push 3 --match
+```
+
+`--match` scales the output to the input's integrated loudness so two settings can be compared at equal level.
 
 ## License
 

@@ -37,12 +37,17 @@ juce_add_plugin(Veneer
 
 set(VENEER_DSP_SOURCES
     Source/dsp/BandCompressor.cpp
+    Source/dsp/Biquad.cpp
     Source/dsp/Crossover.cpp
     Source/dsp/Engine.cpp
+    Source/dsp/HalfbandOversampler.cpp
     Source/dsp/Limiter.cpp
     Source/dsp/Loudness.cpp
+    Source/dsp/Saturator.cpp
+    Source/dsp/ShelfBellEq.cpp
     Source/dsp/TruePeak.cpp
-    Source/dsp/Voicing.cpp)
+    Source/dsp/Voicing.cpp
+    Source/dsp/Widener.cpp)
 
 target_sources(Veneer PRIVATE
     Source/PluginProcessor.cpp
@@ -109,11 +114,14 @@ if(VENEER_BUILD_TESTS)
         Tests/CompressorTests.cpp
         Tests/CrossoverTests.cpp
         Tests/EngineTests.cpp
+        Tests/HalfbandTests.cpp
         Tests/LimiterTests.cpp
         Tests/LoudnessTests.cpp
         Tests/PerfTests.cpp
         Tests/ProcessorTests.cpp
+        Tests/SaturatorTests.cpp
         Tests/TruePeakTests.cpp
+        Tests/VoicingTests.cpp
         Tests/WindowedTests.cpp
         Source/PluginProcessor.cpp
         ${VENEER_DSP_SOURCES})

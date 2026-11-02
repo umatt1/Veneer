@@ -10,7 +10,10 @@
 #include "Limiter.h"
 #include "Loudness.h"
 #include "Meters.h"
+#include "Saturator.h"
+#include "ShelfBellEq.h"
 #include "TruePeak.h"
+#include "Widener.h"
 
 namespace veneer
 {
@@ -37,7 +40,7 @@ public:
     void reset();
     void process (juce::AudioBuffer<float>& buffer, const EngineParams& params);
 
-    int getLatencySamples() const noexcept { return limiter.getLatencySamples(); }
+    int getLatencySamples() const noexcept { return latency; }
     Meters& getMeters() noexcept { return meters; }
     void resetIntegratedLoudness() { loudness.resetIntegrated(); }
 
@@ -57,11 +60,14 @@ private:
     void processFrame (float* const* data, int index, BlockStats& stats);
 
     double sampleRate = 44100.0;
-    int numChannels = 2;
+    int numChannels = 2, latency = 0;
     bool initialised = false;
 
+    ShelfBellEq eq;
     Crossover crossover;
     std::array<BandCompressor, numBands> compressors;
+    std::array<Saturator, numBands> saturators;
+    Widener widener;
     LookaheadLimiter limiter;
     LoudnessMeter loudness;
     TruePeakDetector outputPeak;

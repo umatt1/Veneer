@@ -13,7 +13,7 @@ constexpr float releaseSlowMs = 400.0f;
 constexpr float sustainTimeMs = 200.0f;
 constexpr float sustainFullDb = 4.0f;
 
-// -0.3 dB: the detector read up to 0.26 dB low on heavily limited noise
+// -0.3 dB: the detector read up to 0.27 dB low on heavily limited programme material (see docs/DSP.md)
 constexpr float detectionMargin = 0.9660f;
 
 float coefficient (float timeMs, double sampleRate)

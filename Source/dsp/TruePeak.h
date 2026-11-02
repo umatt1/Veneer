@@ -9,7 +9,7 @@ class TruePeakDetector
 public:
     static constexpr int maxChannels = 2;
     static constexpr int oversampling = 8;
-    static constexpr int tapsPerPhase = 64;
+    static constexpr int tapsPerPhase = 96;
     static constexpr int groupDelaySamples = (oversampling * tapsPerPhase) / 2 / oversampling;
 
     void reset() noexcept;

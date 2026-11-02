@@ -108,6 +108,50 @@ TEST_CASE ("detector tracks an independent reference across the band", "[truepea
     REQUIRE (worstOver < 0.1);
 }
 
+TEST_CASE ("detector never under-reads noise confined to the top of the band", "[truepeak]")
+{
+    // noise between 21 kHz and Nyquist sits in the interpolator's transition band. Reading high there is
+    // the safe side for a limiter; the design trades a little of that for a narrower transition.
+    constexpr int n = 65536;
+    const auto delay = veneer::TruePeakDetector::groupDelaySamples;
+    const auto end = n - std::max (delay, 48);
+    double worst = 100.0, best = -100.0;
+
+    for (const unsigned seed : { 1u, 2u, 3u })
+    {
+        auto x = testutil::noise (1.0, n, seed);
+        float stages[4] = {};
+
+        for (int i = 0; i < n; ++i)
+        {
+            float v = x[(size_t) i];
+
+            for (auto& s : stages)
+            {
+                s += 0.35f * (v - s);
+                v = s;
+            }
+
+            x[(size_t) i] = (i % 2 == 0 ? v : -v);
+        }
+
+        const auto scale = 0.9f / (float) testutil::samplePeak (x, 0, n);
+
+        for (auto& v : x)
+            v *= scale;
+
+        const auto reference = testutil::linearToDb (testutil::referenceTruePeak (x, 64, end));
+        const auto detected = testutil::linearToDb (detectedPeak (x, 64 + delay, n));
+
+        std::printf ("true-peak detector on noise above 21 kHz, seed %u: %+.3f dB against the reference\n", seed, detected - reference);
+        worst = std::min (worst, detected - reference);
+        best = std::max (best, detected - reference);
+    }
+
+    REQUIRE (worst > -0.1);
+    REQUIRE (best < 0.6);
+}
+
 TEST_CASE ("detector never reads below the sample peak", "[truepeak]")
 {
     const auto x = testutil::noise (0.9, 48000, 5);
