@@ -1,0 +1,11 @@
+Veneer
+======
+
+Copy the Veneer.vst3 folder to
+
+  ~/.vst3/
+
+and rescan plug-ins in your host. Veneer is the stand-alone version; run it from a terminal or make it
+executable and double-click it.
+
+Veneer is free software under the GNU AGPL-3.0 (see LICENSE). Third-party notices are in NOTICE.md.

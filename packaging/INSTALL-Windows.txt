@@ -1,0 +1,10 @@
+Veneer
+======
+
+Copy the Veneer.vst3 folder to
+
+  C:\Program Files\Common Files\VST3\
+
+and rescan plug-ins in your host. Veneer.exe is the stand-alone version and can run from anywhere.
+
+Veneer is free software under the GNU AGPL-3.0 (see LICENSE). Third-party notices are in NOTICE.md.
