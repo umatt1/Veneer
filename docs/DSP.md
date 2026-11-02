@@ -250,9 +250,11 @@ functions.
 
 ## Hosts and CI
 
-CI builds and tests on macOS, Linux and Windows. On macOS it also installs the VST3 and AU on the throwaway runner
-and runs pluginval at strictness 10 on both, and `auval` on the AU. A Debug build on Linux runs the suite with JUCE
-assertions on and fails if one fires.
+CI builds and tests on macOS, Linux and Windows, and runs pluginval at strictness 10 on the VST3 on all three. On
+macOS it installs the VST3 and AU on the throwaway runner, validates both, and runs `auval` on the AU. A Debug build
+on Linux runs the suite with JUCE assertions on and fails if one fires. A separate macOS job builds the tests for
+x86-64 only and runs them under Rosetta, so the Intel build of the engine and processor code runs too. Nothing loads
+the Intel half of the plug-in file itself.
 
 In REAPER 7.43 on macOS the VST3 loads, reports its 158 samples of latency, and renders the same audio as the
 engine: identical to within one or two 24-bit steps, with no lag. Bypass is bit-exact against the input. Changed
