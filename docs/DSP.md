@@ -84,8 +84,8 @@ Lookahead brick-wall limiter with true-peak detection.
 7. A final clamp at the ceiling guards the sample peak against rounding.
 
 The dot products in the detector are written with NEON on arm64 and SSE2 on x86-64, with a scalar fallback.
-The compiler's own version ran at a sixth of the speed. The SSE2 path is compile-checked only: no x86-64
-machine was available, so CI is its first run.
+The compiler's own version ran at a sixth of the speed. The SSE2 path was written without an x86-64 machine to
+run it on. CI now runs the whole suite, true-peak tests included, on x86-64 Linux (GCC) and Windows (MSVC).
 
 ### What the ceiling means
 
@@ -248,7 +248,18 @@ behind the output meter. Every other stage is a few percent or less, roughly 3% 
 saturators and 1% for the compressors. The shares are approximate because the compiler inlines most small
 functions.
 
+## Hosts and CI
+
+CI builds and tests on macOS, Linux and Windows. On macOS it also installs the VST3 and AU on the throwaway runner
+and runs pluginval at strictness 10 on both, and `auval` on the AU. A Debug build on Linux runs the suite with JUCE
+assertions on and fails if one fires.
+
+In REAPER 7.43 on macOS the VST3 loads, reports its 158 samples of latency, and renders the same audio as the
+engine: identical to within one or two 24-bit steps, with no lag. Bypass is bit-exact against the input. Changed
+parameters survive a save and reload, and a project saved in an earlier session loads with its state. The editor
+opens and closes in a floating window. This was an offline render driven by a script, so it did not cover realtime
+playback, resizing by hand or automation lanes.
+
 ## Not built yet
 
-Host testing (milestone 4: REAPER, the AU through `auval`, Logic) and CI on Windows and Linux (milestone 5).
-The interface is described in [UI.md](UI.md).
+Logic Pro, and any host on Windows or Linux. The interface is described in [UI.md](UI.md).
