@@ -25,13 +25,13 @@ inline juce::Rectangle<int> inputKnob()   { return { 94, 126, 64, 88 }; }
 inline juce::Rectangle<int> inputHint()   { return { 92, 226, 68, 60 }; }
 
 inline juce::Rectangle<int> amountLabel() { return { 180, 88, 392, 14 }; }
-inline juce::Rectangle<int> amountKnob()  { return { 304, 108, 144, 156 }; }
+inline juce::Rectangle<int> amountKnob()  { return { 290, 106, 172, 196 }; }
 
 inline int bandLeft (int band) { return 190 + band * 124; }
-inline juce::Rectangle<int> bandLabel (int band)   { return { bandLeft (band), 288, 124, 14 }; }
-inline juce::Rectangle<int> bandCaption (int band) { return { bandLeft (band), 303, 124, 12 }; }
-inline juce::Rectangle<int> bandMeter (int band)   { return { bandLeft (band) + 14, 322, 26, 108 }; }
-inline juce::Rectangle<int> bandKnob (int band)    { return { bandLeft (band) + 44, 320, 72, 88 }; }
+inline juce::Rectangle<int> bandLabel (int band)   { return { bandLeft (band), 310, 124, 14 }; }
+inline juce::Rectangle<int> bandCaption (int band) { return { bandLeft (band), 325, 124, 12 }; }
+inline juce::Rectangle<int> bandMeter (int band)   { return { bandLeft (band) + 14, 344, 26, 86 }; }
+inline juce::Rectangle<int> bandKnob (int band)    { return { bandLeft (band) + 44, 342, 72, 88 }; }
 
 inline juce::Rectangle<int> pushLabel()    { return { 596, 88, 72, 14 }; }
 inline juce::Rectangle<int> pushKnob()     { return { 596, 108, 72, 88 }; }
