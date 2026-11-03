@@ -53,7 +53,7 @@ Faceplate::Knob::Knob (juce::AudioProcessorValueTreeState& state, const char* pa
 
     slider.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
     slider.setRotaryParameters (juce::degreesToRadians (225.0f), juce::degreesToRadians (495.0f), true);
-    slider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, hero ? 100 : 72, hero ? 22 : 18);
+    slider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, hero ? 120 : 72, hero ? 26 : 18);
     slider.setWantsKeyboardFocus (true);
     slider.setTitle (parameter.getName (64));
     slider.setTooltip (tooltip);
